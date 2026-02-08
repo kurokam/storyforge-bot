@@ -11,24 +11,19 @@ async def generate_story(kind: str):
     }
 
     payload = {
-        "model": "llama-3.1-70b-versatile",
+        "model": "llama-3.1-8b-instant",
         "messages": [
-            {"role": "system", "content": (
-                "You are StoryForge AI. Create a viral 15-second YouTube Shorts script. "
-                "Return structured output with: HOOK, SCENE, TWIST, CAPCUT_PROMPT, TAGS. "
-                "Language: Turkish. Style based on kind."
-            )},
+            {"role": "system", "content": "You create viral 15-second YouTube Shorts scripts in Turkish. Return: HOOK, SCENE, TWIST, CAPCUT_PROMPT, TAGS."},
             {"role": "user", "content": f"Create a viral {kind} short story for faceless anime-style video."}
         ],
         "temperature": 0.9,
-        "max_tokens": 350
+        "max_tokens": 300
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(GROQ_URL, headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-            return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"❌ AI hata verdi:\n{e}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(GROQ_URL, headers=headers, json=payload)
+        # Debug için status ve body’yi döndür
+        if r.status_code != 200:
+            return f"❌ Groq status={r.status_code}\n{r.text}"
+        data = r.json()
+        return data["choices"][0]["message"]["content"]
