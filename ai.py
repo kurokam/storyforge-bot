@@ -36,4 +36,27 @@ async def generate_story(kind: str):
         async with httpx.AsyncClient(timeout=25) as client:
             response = await client.post(URL, headers=headers, json=payload)
 
+            if response.status_code != 200:
+                return f"❌ Groq API {response.status_code}: {response.text}"
+
+            data = response.json()
+
+            choices = data.get("choices")
+            if not choices or not isinstance(choices, list):
+                return f"❌ Beklenmeyen cevap formatı:\n{data}"
+
+            message = choices[0].get("message", {})
+            content = message.get("content")
+
+            if not content:
+                return f"❌ İçerik boş döndü. Ham cevap:\n{data}"
+
+            return content
+
+    except httpx.TimeoutException:
+        return "⏱️ AI geç cevap verdi. Tekrar dene."
+
+    except Exception as e:
+        return f"❌ HTTP hata: {e}"            response = await client.post(URL, headers=headers, json=payload)
+
             if response
