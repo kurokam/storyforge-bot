@@ -11,35 +11,48 @@ def generate_story(category: str, duration: str):
     }
 
     prompt = f"""
-Write a realistic and viral short horror/mystery story.
+Create a viral YouTube Shorts story.
+
 Category: {category}
-Target duration: {duration}
+Duration: {duration}
 
-Rules:
-- Suitable for YouTube Shorts
-- Twist ending
+Return in this exact format:
 
-Then generate ONLY CapCut scene prompts in this exact format:
+TITLE:
+<viral short title>
+
+DESCRIPTION:
+<short engaging description>
+
+TAGS:
+<tag1, tag2, tag3, ...>
+
+STORY:
+<story text>
+
+CAPCUT SCENES:
 Scene 1 - (visual prompt)
 Scene 2 - (visual prompt)
 ...
-Total scenes based on duration:
+
+Scenes count based on duration:
 30s = 5 scenes
 60s = 10 scenes
 90s = 15 scenes
 
-Each scene must be:
+Each scene must include:
 - 9:16 vertical
 - cinematic lighting
 - photorealistic
-- camera movement (slow zoom / handheld / motion blur)
-No extra explanation.
+- camera movement
+
+No extra commentary.
 """
 
     data = {
         "model": "llama-3.1-8b-instant",
         "messages": [
-            {"role": "system", "content": "You are a creative viral short video storyteller."},
+            {"role": "system", "content": "You are a professional viral YouTube scriptwriter."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.9
