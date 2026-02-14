@@ -3,16 +3,19 @@ import requests
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-def generate_story(category: str):
+def generate_story(category: str, topic: str = ""):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
 
+    topic_part = f"Topic: {topic}" if topic else "Topic: Any"
+
     prompt = f"""
 Write a realistic and viral short horror/mystery story.
 Category: {category}
+{topic_part}
 
 Rules:
 - Suitable for YouTube Shorts
