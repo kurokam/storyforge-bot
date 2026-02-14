@@ -19,9 +19,12 @@ Kurallar:
 - 60-90 saniyelik hikaye metni
 - Sonda ters kose bitis
 
-Sonra CapCut icin 10 adet gorsel promptu uret.
-Her gorsel 3 saniyelik sahne olsun.
-Sadece metin ver.
+Sonra SADECE asagidaki formatta CapCut icin sahneler uret:
+Sahne 1 - (gorsel prompt)
+Sahne 2 - (gorsel prompt)
+...
+Toplam 10 sahne olacak.
+Baska hicbir aciklama yazma.
 """
 
     data = {
