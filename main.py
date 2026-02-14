@@ -1,6 +1,17 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+import json
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 from ai import generate_story
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -18,18 +29,19 @@ DURATIONS = [
     ("90s", "dur_90s"),
 ]
 
+AD_MESSAGE = "\n\n🔥 Created with Storyforge AI Bot"
+
 async def story_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(name, callback_data=code)] for name, code in CATEGORIES]
     await update.message.reply_text(
         "🎬 Choose a story category:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 async def category_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    category_code = query.data
     category_map = {
         "cat_horror": "Horror",
         "cat_mystery": "Mystery",
@@ -37,36 +49,64 @@ async def category_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "cat_psychological": "Psychological",
     }
 
-    category = category_map.get(category_code)
-    context.user_data["category"] = category
+    context.user_data["category"] = category_map.get(query.data)
 
     keyboard = [[InlineKeyboardButton(name, callback_data=code)] for name, code in DURATIONS]
     await query.edit_message_text(
-        f"⏱️ Category: {category}\nChoose duration:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        "⏱️ Choose duration:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
 async def duration_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    duration_code = query.data
     duration_map = {
         "dur_30s": "30s",
         "dur_60s": "60s",
         "dur_90s": "90s",
     }
 
-    duration = duration_map.get(duration_code)
-    category = context.user_data.get("category", "Horror")
+    duration = duration_map.get(query.data)
+    category = context.user_data.get("category")
 
-    await query.edit_message_text("⏳ Generating your story...")
+    await query.edit_message_text("⏳ Generating content...")
 
-    try:
-        result = generate_story(category, duration)
-        await query.edit_message_text(result)
-    except Exception as e:
-        await query.edit_message_text(f"❌ AI error:\n{str(e)}")
+    result = generate_story(category, duration) + AD_MESSAGE
+
+    context.user_data["last_result"] = result
+
+    await query.edit_message_text(result[:4000])
+
+    keyboard = [
+        [
+            InlineKeyboardButton("⬇️ Download TXT", callback_data="download_txt"),
+            InlineKeyboardButton("⬇️ Download JSON", callback_data="download_json"),
+        ]
+    ]
+
+    await query.message.reply_text(
+        "Download format:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    content = context.user_data.get("last_result", "")
+
+    if query.data == "download_txt":
+        filename = "story.txt"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
+        await query.message.reply_document(InputFile(filename))
+
+    elif query.data == "download_json":
+        filename = "story.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump({"content": content}, f, indent=2)
+        await query.message.reply_document(InputFile(filename))
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -74,8 +114,9 @@ def main():
     app.add_handler(CommandHandler("story", story_menu))
     app.add_handler(CallbackQueryHandler(category_handler, pattern="^cat_"))
     app.add_handler(CallbackQueryHandler(duration_handler, pattern="^dur_"))
+    app.add_handler(CallbackQueryHandler(download_handler, pattern="^download_"))
 
-    print("🤖 Bot is running...")
+    print("🤖 Pro Bot Running...")
     app.run_polling()
 
 if __name__ == "__main__":
