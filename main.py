@@ -1,161 +1,80 @@
 import os
-import time
-from collections import defaultdict
-
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-    CallbackQueryHandler,
-)
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 from ai import generate_story
 
+logging.basicConfig(level=logging.INFO)
+
 TOKEN = os.getenv("BOT_TOKEN")
-
-USER_LIMIT = defaultdict(lambda: {"count": 0, "date": time.strftime("%Y-%m-%d")})
-DAILY_LIMIT = 5
-
-# Basit istatistik
-STATS = defaultdict(int)
-
-
-def main_menu_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton("😱 Korku", callback_data="korku"),
-            InlineKeyboardButton("🕵️ Gizem", callback_data="gizem"),
-        ],
-        [
-            InlineKeyboardButton("🧩 Komplo", callback_data="komplo"),
-            InlineKeyboardButton("📜 Gerçek", callback_data="gercek"),
-        ],
-        [
-            InlineKeyboardButton("🌑 Karanlık Sırlar", callback_data="karanlik"),
-        ],
-    ]
-    return InlineKeyboardMarkup(keyboard)
 
 
 def split_story_and_scenes(text: str):
-    """
-    AI çıktısı formatı:
-    BASLIK:
-    ACIKLAMA:
-    SAHNELER:
-    1. ...
-    ...
-    ETIKETLER:
-    """
     parts = {"main": text, "scenes": None}
     try:
-        if "SAHNELER:" in text:
-            before, after = text.split("SAHNELER:", 1)
+        if "SAHNELER" in text:
+            before, after = text.split("SAHNELER", 1)
             parts["main"] = before.strip()
-            parts["scenes"] = "SAHNELER:\n" + after.strip()
+            parts["scenes"] = "SAHNELER" + after.strip()
     except Exception:
         pass
     return parts
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        ["👻 Korku Hikayesi"],
+        ["🏚 Terkedilmiş Mekan"],
+        ["🕯 Paranormal Olay"],
+        ["😱 Gerçek Hikaye"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
     await update.message.reply_text(
-        "👋 Hoş geldin!\n\n"
-        "YouTube Shorts için viral hikayeler üretirim.\n\n"
-        "Aşağıdan tür seç:",
-        reply_markup=main_menu_keyboard()
+        "🎬 Faceless YouTube Shorts AI Bot'a hoş geldin!\n\n"
+        "Aşağıdan hikâye türü seç 👇",
+        reply_markup=reply_markup
     )
 
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📌 Menüden tür seç veya komut kullan:\n\n"
-        "/korku\n"
-        "/gizem\n"
-        "/komplo\n"
-        "/gercek\n"
-        "/karanlik\n\n"
-        "Ya da:\n"
-        "/story <konu>"
-    )
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
 
-
-async def _handle_story(update: Update, context: ContextTypes.DEFAULT_TYPE, kind: str):
-    uid = update.effective_user.id
-    today = time.strftime("%Y-%m-%d")
-
-    if USER_LIMIT[uid]["date"] != today:
-        USER_LIMIT[uid] = {"count": 0, "date": today}
-
-    if USER_LIMIT[uid]["count"] >= DAILY_LIMIT:
-        await update.effective_user.send_message(
-            "❌ Günlük ücretsiz limit doldu.\n\n"
-            "Sınırsız kullanım için:\n"
-            "👉 https://t.me/seninlinkin"
-        )
-        return
-
-    USER_LIMIT[uid]["count"] += 1
-    kalan = DAILY_LIMIT - USER_LIMIT[uid]["count"]
-
-    STATS[kind] += 1
-
-    await update.effective_user.send_message(
-        f"🧠 {kind.title()} hikayesi hazırlanıyor...\n"
-        f"⏳ Kalan hakkın: {kalan}/{DAILY_LIMIT}"
-    )
-
-    text = await generate_story(kind)
-    parts = split_story_and_scenes(text)
-
-    # Ana metni gönder
-    await update.effective_user.send_message(parts["main"])
-
-    # Sahne varsa ayrı mesaj
-    if parts["scenes"]:
-        await update.effective_user.send_message(
-            "🎬 CapCut için sahneler aşağıda:\n\n" + parts["scenes"]
-        )
-
-
-async def on_menu_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    kind_map = {
-        "korku": "korku",
-        "gizem": "gizem",
-        "komplo": "komplo",
-        "gercek": "gerçek hikaye",
-        "karanlik": "karanlık sırlar",
+    mapping = {
+        "👻 Korku Hikayesi": "korku",
+        "🏚 Terkedilmiş Mekan": "terk edilmis mekan",
+        "🕯 Paranormal Olay": "paranormal olay",
+        "😱 Gerçek Hikaye": "gercek hayattan korku"
     }
 
-    kind = kind_map.get(query.data, "korku")
-    await _handle_story(update, context, kind)
+    kind = mapping.get(text)
+
+    if not kind:
+        await update.message.reply_text("Lütfen menüden bir seçenek seç.")
+        return
+
+    await update.message.reply_text("⏳ Hikâye hazırlanıyor...")
+
+    result = await generate_story(kind)
+    parts = split_story_and_scenes(result)
+
+    await update.effective_user.send_message(parts["main"])
+
+    if parts["scenes"]:
+        await update.effective_user.send_message(
+            "🎬 CapCut için otomatik sahne promptları:\n\n" + parts["scenes"]
+        )
 
 
-async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kind = "korku"
-    if context.args:
-        kind = " ".join(context.args)
-    await _handle_story(update, context, kind)
-
-
-def main():
+if __name__ == "__main__":
     if not TOKEN:
-        raise RuntimeError("❌ BOT_TOKEN bulunamadı! Railway Variables'a ekle.")
+        raise ValueError("BOT_TOKEN ortam değişkeni tanımlı değil!")
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("story", story))
-    app.add_handler(CallbackQueryHandler(on_menu_click))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 Bot calisiyor...")
+    print("🤖 Bot çalışıyor...")
     app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
