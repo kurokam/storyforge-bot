@@ -7,10 +7,35 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from ai import generate_story
 
+# Railway Variables içine BOT_TOKEN eklediğinden emin ol
 TOKEN = os.getenv("BOT_TOKEN")
 
+# Günlük ücretsiz kullanım limiti
 USER_LIMIT = defaultdict(lambda: {"count": 0, "date": time.strftime("%Y-%m-%d")})
 DAILY_LIMIT = 5
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Hoş geldin!\n\n"
+        "Bu bot, YouTube Shorts için viral korku/gizem hikayeleri üretir.\n\n"
+        "Kullanım:\n"
+        "/story korku\n"
+        "/story gizem\n"
+        "/story komplo\n\n"
+        "Günde 5 ücretsiz üretim hakkın var."
+    )
+
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📌 Komutlar:\n\n"
+        "/story <konu>  → Hikaye üretir\n"
+        "/start         → Tanıtım\n"
+        "/help          → Yardım\n\n"
+        "Örnek:\n"
+        "/story korku"
+    )
 
 
 async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -22,7 +47,7 @@ async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if USER_LIMIT[uid]["count"] >= DAILY_LIMIT:
         await update.message.reply_text(
-            "❌ Günlük limit doldu.\n\n"
+            "❌ Günlük ücretsiz limit doldu.\n\n"
             "Sınırsız kullanım için:\n"
             "👉 https://t.me/seninlinkin"
         )
@@ -41,10 +66,15 @@ async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not TOKEN:
-        raise RuntimeError("BOT_TOKEN bulunamadı! Railway Variables'a ekle.")
+        raise RuntimeError("❌ BOT_TOKEN bulunamadı! Railway Variables'a ekle.")
 
     app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("story", story))
+
+    print("🤖 Bot calisiyor...")
     app.run_polling()
 
 
