@@ -1,60 +1,79 @@
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 from ai import generate_story
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-AVAILABLE_TYPES = {
-    "horror": "Horror",
-    "mystery": "Mystery",
-    "true": "True Story",
-    "psychological": "Psychological"
-}
+CATEGORIES = [
+    ("Horror", "cat_horror"),
+    ("Mystery", "cat_mystery"),
+    ("True Story", "cat_true"),
+    ("Psychological", "cat_psychological"),
+]
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🎬 Storyforge Bot\n\n"
-        "Use this command in group or private chat:\n\n"
-        "/story horror abandoned hospital at night\n"
-        "/story mystery strange phone call\n"
-        "/story true creepy neighbor story\n"
-        "/story psychological paranoia in a small town\n"
+DURATIONS = [
+    ("30s", "dur_30s"),
+    ("60s", "dur_60s"),
+    ("90s", "dur_90s"),
+]
+
+async def story_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton(name, callback_data=code)] for name, code in CATEGORIES]
+    await update.message.reply_text(
+        "🎬 Choose a story category:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    await update.message.reply_text(text)
 
-async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            "⚠️ Please specify a type.\n\n"
-            "Example:\n"
-            "/story horror abandoned hospital"
-        )
-        return
+async def category_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    story_type_key = context.args[0].lower()
-    topic = " ".join(context.args[1:]) if len(context.args) > 1 else ""
+    category_code = query.data
+    category_map = {
+        "cat_horror": "Horror",
+        "cat_mystery": "Mystery",
+        "cat_true": "True Story",
+        "cat_psychological": "Psychological",
+    }
 
-    if story_type_key not in AVAILABLE_TYPES:
-        await update.message.reply_text(
-            "❌ Invalid type.\n\nAvailable types:\n"
-            "horror\nmystery\ntrue\npsychological"
-        )
-        return
+    category = category_map.get(category_code)
+    context.user_data["category"] = category
 
-    await update.message.reply_text("⏳ Generating your story...")
+    keyboard = [[InlineKeyboardButton(name, callback_data=code)] for name, code in DURATIONS]
+    await query.edit_message_text(
+        f"⏱️ Category: {category}\nChoose duration:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def duration_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    duration_code = query.data
+    duration_map = {
+        "dur_30s": "30s",
+        "dur_60s": "60s",
+        "dur_90s": "90s",
+    }
+
+    duration = duration_map.get(duration_code)
+    category = context.user_data.get("category", "Horror")
+
+    await query.edit_message_text("⏳ Generating your story...")
 
     try:
-        result = generate_story(AVAILABLE_TYPES[story_type_key], topic)
-        await update.message.reply_text(result)
+        result = generate_story(category, duration)
+        await query.edit_message_text(result)
     except Exception as e:
-        await update.message.reply_text(f"❌ AI error:\n{str(e)}")
+        await query.edit_message_text(f"❌ AI error:\n{str(e)}")
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("story", story_command))
+    app.add_handler(CommandHandler("story", story_menu))
+    app.add_handler(CallbackQueryHandler(category_handler, pattern="^cat_"))
+    app.add_handler(CallbackQueryHandler(duration_handler, pattern="^dur_"))
 
     print("🤖 Bot is running...")
     app.run_polling()
